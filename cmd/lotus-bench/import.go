@@ -20,6 +20,7 @@ import (
 	"github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-metrics-interface"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -235,7 +236,10 @@ var importBenchCmd = &cli.Command{
 			defer c.Close() //nolint:errcheck
 		}
 
-		bs, err = blockstore.WrapRistrettoCache(bs)
+		ctx := metrics.CtxScope(context.Background(), "lotus")
+		opts := blockstore.DefaultCacheOpts()
+		opts.HasBloomFilterSize = 0
+		bs, err = blockstore.CachedBlockstore(ctx, bs, opts)
 		if err != nil {
 			return err
 		}
