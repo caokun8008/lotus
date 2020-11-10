@@ -36,7 +36,7 @@ func (ss *SectorStats) updateSector(id abi.SectorID, st SectorState) {
 	ss.totals[sst]++
 }
 
-// return the number of sectors currently in the sealing pipeline
+// return the number of sectors currently in the sealing pipeline 返回密封管道中当前的扇区数
 func (ss *SectorStats) curSealing() uint64 {
 	ss.lk.Lock()
 	defer ss.lk.Unlock()

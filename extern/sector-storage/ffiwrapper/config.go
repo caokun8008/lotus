@@ -9,7 +9,7 @@ import (
 type Config struct {
 	SealProofType abi.RegisteredSealProof
 
-	_ struct{} // guard against nameless init
+	_ struct{} // guard against nameless init 防止无名的初始化
 }
 
 func sizeFromConfig(cfg Config) (abi.SectorSize, error) {

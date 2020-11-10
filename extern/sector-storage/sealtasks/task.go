@@ -45,7 +45,7 @@ var shortNames = map[TaskType]string{
 
 func (a TaskType) MuchLess(b TaskType) (bool, bool) {
 	oa, ob := order[a], order[b]
-	oneNegative := oa^ob < 0
+	oneNegative := oa^ob < 0   // 6^5 = 0000 0110 ^ 0000 0101 = 0000 0011 = 3
 	return oneNegative, oa < ob
 }
 

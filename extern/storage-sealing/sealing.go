@@ -383,7 +383,7 @@ func (m *Sealing) newDealSector() (abi.SectorNumber, error) {
 	return sid, nil
 }
 
-// newSectorCC accepts a slice of pieces with no deal (junk data)
+// newSectorCC accepts a slice of pieces with no deal (junk data) 新的扇区CC可以接受零碎交易（垃圾数据）
 func (m *Sealing) newSectorCC(sid abi.SectorNumber, pieces []Piece) error {
 	rt, err := ffiwrapper.SealProofTypeFromSectorSize(m.sealer.SectorSize())
 	if err != nil {
@@ -391,6 +391,7 @@ func (m *Sealing) newSectorCC(sid abi.SectorNumber, pieces []Piece) error {
 	}
 
 	log.Infof("Creating CC sector %d", sid)
+	log.Infof("==========[newSectorCC] pieces = ", pieces)  //add by ck
 	return m.sectors.Send(uint64(sid), SectorStartCC{
 		ID:         sid,
 		Pieces:     pieces,

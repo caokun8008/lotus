@@ -45,13 +45,14 @@ const mib = 1 << 20
 type WorkerAction func(ctx context.Context, w Worker) error
 
 type WorkerSelector interface {
-	Ok(ctx context.Context, task sealtasks.TaskType, spt abi.RegisteredSealProof, a *workerHandle) (bool, error) // true if worker is acceptable for performing a task
-
-	Cmp(ctx context.Context, task sealtasks.TaskType, a, b *workerHandle) (bool, error) // true if a is preferred over b
+	// true if worker is acceptable for performing a task 如果工作人员可以接受执行任务，则返回true
+	Ok(ctx context.Context, task sealtasks.TaskType, spt abi.RegisteredSealProof, a *workerHandle) (bool, error)
+	// true if a is preferred over b //如果a优先于b则为true
+	Cmp(ctx context.Context, task sealtasks.TaskType, a, b *workerHandle) (bool, error)
 }
 
 type scheduler struct {
-	spt abi.RegisteredSealProof
+	spt abi.RegisteredSealProof  //3
 
 	workersLk sync.RWMutex
 	workers   map[WorkerID]*workerHandle
@@ -124,7 +125,7 @@ type activeResources struct {
 type workerRequest struct {
 	sector   abi.SectorID
 	taskType sealtasks.TaskType
-	priority int // larger values more important
+	priority int // larger values more important  //优先级，值大有限
 	sel      WorkerSelector
 
 	prepare WorkerAction
@@ -333,18 +334,29 @@ func (sh *scheduler) diag() SchedDiagInfo {
 
 func (sh *scheduler) trySched() {
 	/*
-		This assigns tasks to workers based on:
-		- Task priority (achieved by handling sh.schedQueue in order, since it's already sorted by priority)
-		- Worker resource availability
-		- Task-specified worker preference (acceptableWindows array below sorted by this preference)
-		- Window request age
+			This assigns tasks to workers based on:
+			- Task priority (achieved by handling sh.schedQueue in order, since it's already sorted by priority)
+			- Worker resource availability
+			- Task-specified worker preference (acceptableWindows array below sorted by this preference)
+			- Window request age
 
-		1. For each task in the schedQueue find windows which can handle them
-		1.1. Create list of windows capable of handling a task
-		1.2. Sort windows according to task selector preferences
-		2. Going through schedQueue again, assign task to first acceptable window
-		   with resources available
-		3. Submit windows with scheduled tasks to workers
+			1. For each task in the schedQueue find windows which can handle them
+			1.1. Create list of windows capable of handling a task
+			1.2. Sort windows according to task selector preferences
+			2. Going through schedQueue again, assign task to first acceptable window
+			   with resources available
+			3. Submit windows with scheduled tasks to workers
+		    这基于以下任务将任务分配给工作人员：
+		    -任务优先级（通过按顺序处理sh.schedQueue实现，因为它已经按优先级排序了）
+		    -工人资源的可用性
+		    -任务指定的工作人员首选项（下面的Windows数组按此首选项排序）
+		    -窗口请求年龄
+
+		    1.对于schedQueue中的每个任务，找到可以处理它们的窗口
+		    1.1。 创建能够处理任务的窗口列表
+		    1.2。 根据任务选择器首选项对窗口进行排序
+		    2.再次通过schedQueue，将任务分配给第一个可接受的窗口，有可用资源
+		    3.将带有计划任务的窗口提交给工作人员
 
 	*/
 
@@ -362,11 +374,11 @@ func (sh *scheduler) trySched() {
 	}
 
 	// Step 1
-	concurrency := len(sh.openWindows)
-	throttle := make(chan struct{}, concurrency)
+	concurrency := len(sh.openWindows)  //并发
+	throttle := make(chan struct{}, concurrency) //阀门
 
-	var wg sync.WaitGroup
-	wg.Add(sh.schedQueue.Len())
+	var wg sync.WaitGroup  //定义一个同步等待组
+	wg.Add(sh.schedQueue.Len())  //
 
 	for i := 0; i < sh.schedQueue.Len(); i++ {
 		throttle <- struct{}{}

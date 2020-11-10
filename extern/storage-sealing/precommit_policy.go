@@ -21,22 +21,22 @@ type Chain interface {
 
 // BasicPreCommitPolicy satisfies PreCommitPolicy. It has two modes:
 //
-// Mode 1: The sector contains a non-zero quantity of pieces with deal info
-// Mode 2: The sector contains no pieces with deal info
+// Mode 1: The sector contains a non-zero quantity of pieces with deal info 模式1：该部门包含非零数量的交易信息
+// Mode 2: The sector contains no pieces with deal info 模式2：该部门不包含交易信息
 //
 // The BasicPreCommitPolicy#Expiration method is given a slice of the pieces
 // which the miner has encoded into the sector, and from that slice picks either
-// the first or second mode.
+// the first or second mode.为BasicPreCommitPolicy＃Expiration方法提供了矿工已编码到扇区中的片段的一部分，然后从该片段中选择第一或第二模式。
 //
 // If we're in Mode 1: The pre-commit expiration epoch will be the maximum
-// deal end epoch of a piece in the sector.
+// deal end epoch of a piece in the sector. 如果我们处于模式1中，则预提交到期时间段将是该扇区中一块交易的最大交易结束时间段。
 //
 // If we're in Mode 2: The pre-commit expiration epoch will be set to the
-// current epoch + the provided default duration.
+// current epoch + the provided default duration. 如果我们处于模式2：预提交的到期时间将设置为当前时间+提供的默认持续时间。
 type BasicPreCommitPolicy struct {
 	api Chain
 
-	provingBoundary abi.ChainEpoch
+	provingBoundary abi.ChainEpoch  //证明边界
 	duration        abi.ChainEpoch
 }
 
@@ -50,7 +50,7 @@ func NewBasicPreCommitPolicy(api Chain, duration abi.ChainEpoch, provingBoundary
 }
 
 // Expiration produces the pre-commit sector expiration epoch for an encoded
-// replica containing the provided enumeration of pieces and deals.
+// replica containing the provided enumeration of pieces and deals.为包含提供的枚举和交易枚举的编码副本生成预提交扇区到期时间。
 func (p *BasicPreCommitPolicy) Expiration(ctx context.Context, ps ...Piece) (abi.ChainEpoch, error) {
 	_, epoch, err := p.api.ChainHead(ctx)
 	if err != nil {

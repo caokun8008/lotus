@@ -45,15 +45,19 @@ func (m *Sealing) PledgeSector() error {
 	go func() {
 		ctx := context.TODO() // we can't use the context from command which invokes
 		// this, as we run everything here async, and it's cancelled when the
-		// command exits
+		// command exits 我们无法在调用此命令的命令中使用上下文，因为我们在此处异步运行所有内容，并且在命令退出时被取消
 
 		size := abi.PaddedPieceSize(m.sealer.SectorSize()).Unpadded()
 
+		log.Info("==========[PledgeSector] size = ",size) //add by ck
 		sid, err := m.sc.Next()
 		if err != nil {
 			log.Errorf("%+v", err)
 			return
 		}
+
+		log.Info("==========[PledgeSector] sid = ",sid) //add by ck
+
 		err = m.sealer.NewSector(ctx, m.minerSector(sid))
 		if err != nil {
 			log.Errorf("%+v", err)
@@ -68,6 +72,7 @@ func (m *Sealing) PledgeSector() error {
 
 		ps := make([]Piece, len(pieces))
 		for idx := range ps {
+			log.Info("==========[PledgeSector] piece = ",pieces[idx])
 			ps[idx] = Piece{
 				Piece:    pieces[idx],
 				DealInfo: nil,
