@@ -128,12 +128,12 @@ type workerRequest struct {
 	priority int // larger values more important  //优先级，值大有限
 	sel      WorkerSelector
 
-	prepare WorkerAction
+	prepare WorkerAction  //worker行为，是个函数
 	work    WorkerAction
 
-	start time.Time
+	start time.Time  //开始时间
 
-	index int // The index of the item in the heap.
+	index int // The index of the item in the heap. 堆中项目的索引。
 
 	indexHeap int
 	ret       chan<- workerResponse
@@ -225,7 +225,7 @@ type SchedDiagInfo struct {
 func (sh *scheduler) runSched() {
 	defer close(sh.closed)
 
-	iw := time.After(InitWait)
+	iw := time.After(InitWait) //等待3秒钟
 	var initialised bool
 
 	for {
@@ -233,36 +233,36 @@ func (sh *scheduler) runSched() {
 		var toDisable []workerDisableReq
 
 		select {
-		case <-sh.workerChange:
+		case <-sh.workerChange:  //结构体通道，worker发生变化时，调度激活
 			doSched = true
-		case dreq := <-sh.workerDisable:
+		case dreq := <-sh.workerDisable:  //worker掉线或禁用时，禁用列表更新，调度激活
 			toDisable = append(toDisable, dreq)
 			doSched = true
-		case req := <-sh.schedule:
+		case req := <-sh.schedule: // 收到调度请求，把请求添加到调度队列，激活调度
 			sh.schedQueue.Push(req)
 			doSched = true
 
 			if sh.testSync != nil {
 				sh.testSync <- struct{}{}
 			}
-		case req := <-sh.windowRequests:
-			sh.openWindows = append(sh.openWindows, req)
+		case req := <-sh.windowRequests:  //收到工作窗口请求
+			sh.openWindows = append(sh.openWindows, req)  //把工作窗口请求添加到打开的窗口组，激活调度
 			doSched = true
 		case ireq := <-sh.info:
-			ireq(sh.diag())
+			ireq(sh.diag())  //调度队列和窗口
 
 		case <-iw:
 			initialised = true
 			iw = nil
 			doSched = true
-		case <-sh.closing:
+		case <-sh.closing:  //收到调度关闭信号，关闭调度
 			sh.schedClose()
 			return
 		}
 
 		if doSched && initialised {
 			// First gather any pending tasks, so we go through the scheduling loop
-			// once for every added task
+			// once for every added task 首先收集所有未完成的任务，因此我们为每个添加的任务执行一次调度循环
 		loop:
 			for {
 				select {
@@ -312,20 +312,22 @@ func (sh *scheduler) runSched() {
 func (sh *scheduler) diag() SchedDiagInfo {
 	var out SchedDiagInfo
 
-	for sqi := 0; sqi < sh.schedQueue.Len(); sqi++ {
-		task := (*sh.schedQueue)[sqi]
-
-		out.Requests = append(out.Requests, SchedDiagRequestInfo{
+	for sqi := 0; sqi < sh.schedQueue.Len(); sqi++ {  //循环任务队列
+		task := (*sh.schedQueue)[sqi] //具体任务
+        log.Info("==========[diag],task = ",task)  // add by ck
+		out.Requests = append(out.Requests, SchedDiagRequestInfo{ //把任务添加到 SchedDiagInfo 中的 Requests 切片
 			Sector:   task.sector,
 			TaskType: task.taskType,
 			Priority: task.priority,
 		})
 	}
 
-	sh.workersLk.RLock()
-	defer sh.workersLk.RUnlock()
+	sh.workersLk.RLock() //给调度上锁
+	defer sh.workersLk.RUnlock() //函数执行完成时解锁
 
+	//遍历调度中的openWindeows,并放入SchedDiagInfo中的OpenWindows切片
 	for _, window := range sh.openWindows {
+		log.Info("==========[diag],window = ",window)  // add by ck
 		out.OpenWindows = append(out.OpenWindows, uuid.UUID(window.worker).String())
 	}
 
@@ -362,79 +364,83 @@ func (sh *scheduler) trySched() {
 
 	sh.workersLk.RLock()
 	defer sh.workersLk.RUnlock()
-
-	windows := make([]schedWindow, len(sh.openWindows))
-	acceptableWindows := make([][]int, sh.schedQueue.Len())
+	log.Info("==========[trySched],sh.openWindows = ",sh.openWindows)  // add by ck
+	windows := make([]schedWindow, len(sh.openWindows)) //worker windows切片，worker调度窗口的切片
+	acceptableWindows := make([][]int, sh.schedQueue.Len()) //可以接受任务的 worker调度窗口切片
 
 	log.Debugf("SCHED %d queued; %d open windows", sh.schedQueue.Len(), len(windows))
 
-	if len(sh.openWindows) == 0 {
+	if len(sh.openWindows) == 0 { //如果调度对象的openWindows个数为0，返回
 		// nothing to schedule on
 		return
 	}
 
 	// Step 1
-	concurrency := len(sh.openWindows)  //并发
-	throttle := make(chan struct{}, concurrency) //阀门
+	concurrency := len(sh.openWindows)  //并发个数等于调度对象中openWindows的个数
+	throttle := make(chan struct{}, concurrency) //定义一个传结构体的通道，异步个数是并发数
 
-	var wg sync.WaitGroup  //定义一个同步等待组
-	wg.Add(sh.schedQueue.Len())  //
+	var wg sync.WaitGroup  //定义一个同步阻塞组
+	wg.Add(sh.schedQueue.Len())  //向同步阻塞组中添加阻塞，阻塞个数等于调度队列的长度
 
-	for i := 0; i < sh.schedQueue.Len(); i++ {
-		throttle <- struct{}{}
+	for i := 0; i < sh.schedQueue.Len(); i++ {  // 循环调度任务队列
+		throttle <- struct{}{}  //向结构体通道传一个空结构体
 
-		go func(sqi int) {
-			defer wg.Done()
-			defer func() {
+		go func(sqi int) {     //使用匿名函数启动一个协程
+			defer wg.Done()    //协程函数结束时调用
+			defer func() {     //协程函数结束时从通道接收结构体数据
 				<-throttle
 			}()
 
-			task := (*sh.schedQueue)[sqi]
-			needRes := ResourceTable[task.taskType][sh.spt]
-
-			task.indexHeap = sqi
-			for wnd, windowRequest := range sh.openWindows {
-				worker, ok := sh.workers[windowRequest.worker]
+			task := (*sh.schedQueue)[sqi]  //把队列中的第sqi个任务赋值给task
+			log.Info("==========[trySched] task = ",task)  //把task打印出来，看看到底是个什么东东 add by ck
+			needRes := ResourceTable[task.taskType][sh.spt]  //任务需要的资源
+			log.Info("==========[trySched] needRes = ",needRes)  //把needRes打印出来，看看到底是个什么东东 add by ck
+			task.indexHeap = sqi  //task在堆中的索引
+			for wnd, windowRequest := range sh.openWindows {  //循环worker窗口
+				worker, ok := sh.workers[windowRequest.worker] //通过workerid获取一个具体的worker信息
 				if !ok {
 					log.Errorf("worker referenced by windowRequest not found (worker: %s)", windowRequest.worker)
 					// TODO: How to move forward here?
 					continue
 				}
+				log.Info("==========[trySched] worker = ",worker)  //把worker打印出来，看看到底是个什么东东 add by ck
+				log.Info("==========[trySched] wnd = ",wnd)  //add by ck
 
-				if !worker.enabled {
+				if !worker.enabled {  //如果worker不可用，跳过这个不可用的worker,并打印出该worker信息，并继续循环
 					log.Debugw("skipping disabled worker", "worker", windowRequest.worker)
 					continue
 				}
 
 				// TODO: allow bigger windows
+				//检查worker可分配的内存，cpu,gpu资源是否能满足需要，不能满足继续下一个循环，找下一个worker窗口
 				if !windows[wnd].allocated.canHandleRequest(needRes, windowRequest.worker, "schedAcceptable", worker.info.Resources) {
 					continue
 				}
 
-				rpcCtx, cancel := context.WithTimeout(task.ctx, SelectorTimeout)
-				ok, err := task.sel.Ok(rpcCtx, task.taskType, sh.spt, worker)
-				cancel()
-				if err != nil {
+				rpcCtx, cancel := context.WithTimeout(task.ctx, SelectorTimeout) //选择器时间超时，返回一个取消函数
+				ok, err := task.sel.Ok(rpcCtx, task.taskType, sh.spt, worker)  //worker能否接受任务
+				cancel() //调用取消函数
+				if err != nil { //出错，继续循环
 					log.Errorf("trySched(1) req.sel.Ok error: %+v", err)
 					continue
 				}
 
-				if !ok {
+				if !ok {  //worker不接受任务，继续新循环
 					continue
 				}
 
-				acceptableWindows[sqi] = append(acceptableWindows[sqi], wnd)
+				acceptableWindows[sqi] = append(acceptableWindows[sqi], wnd) //添加一个可接受任务窗口
 			}
 
-			if len(acceptableWindows[sqi]) == 0 {
+			if len(acceptableWindows[sqi]) == 0 {  //可接受任务窗口等于0，返回
 				return
 			}
 
-			// Pick best worker (shuffle in case some workers are equally as good)
+			// Pick best worker (shuffle in case some workers are equally as good) 选择最佳工人（如果有些工人同样出色，则应洗牌）
 			rand.Shuffle(len(acceptableWindows[sqi]), func(i, j int) {
 				acceptableWindows[sqi][i], acceptableWindows[sqi][j] = acceptableWindows[sqi][j], acceptableWindows[sqi][i] // nolint:scopelint
 			})
-			sort.SliceStable(acceptableWindows[sqi], func(i, j int) bool {
+			sort.SliceStable(acceptableWindows[sqi], func(i, j int) bool { //优先级排序
 				wii := sh.openWindows[acceptableWindows[sqi][i]].worker // nolint:scopelint
 				wji := sh.openWindows[acceptableWindows[sqi][j]].worker // nolint:scopelint
 
